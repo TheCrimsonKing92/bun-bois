@@ -1,0 +1,292 @@
+<html>
+    <head>
+        <title>Shop Simulator</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+        <style>
+            .no-display {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Shop Simulator</h1>
+        <main>
+            <p id="instructions">Let's get started!</p>
+            <section class="no-display" id="choices"></section>
+        </main>
+        <script type="text/javascript">
+            const choices = document.querySelector("#choices");
+            const instructions = document.querySelector('#instructions');
+            const main = document.querySelector('main');
+
+            let state = {
+                currentState: undefined,
+                currentStateIndex: undefined,
+                scenario: undefined,
+                options: []
+            };
+
+            let { currentState, currentStateIndex, scenario, options } = state;
+
+            const COMMON_OPTIONS = [
+                {
+                    name: 'City Size',
+                    values: [
+                        'Tiny',
+                        'Small',
+                        'Small-Medium',
+                        'Medium',
+                        'Medium-Large',
+                        'Large',
+                        'Extra-Large',
+                        'Metropolis',
+                        'Cosmopolis'
+                    ]
+                },
+                {
+                    name: 'Industry Saturation',
+                    values: [
+                        'None',
+                        'Barely',
+                        'Some',
+                        'Much',
+                        'Lots',
+                        'Full',
+                        'Over-Full'
+                    ]
+                }
+            ];
+
+            const SCENARIOS = [
+                {
+                    name: 'Convenience',
+                    description: '',
+                    options: COMMON_OPTIONS.concat([])
+                },
+                {
+                    name: 'Electronics',
+                    description: 'You own the shop "Electric Savings", an independent ' +
+                                 'electronic goods retailer with a small in-house staff. Your ' +
+                                 'day-to-day responsibilities involve placing supplier orders, ' +
+                                 'managing employees, and _________',
+                    options: COMMON_OPTIONS.concat([])
+                },
+                {
+                    name: 'Groceries',
+                    description: '',
+                    options: COMMON_OPTIONS.concat([])
+                }
+            ];
+
+            const makeRadioFieldset = ({ name, values }) => {
+                const loweredName = name.split(' ').map(a => a.toLowerCase()).join('-');
+                const fieldset = document.createElement('fieldset');
+                const legend = document.createElement('legend');
+                legend.innerText = name;
+                fieldset.appendChild(legend);
+
+                const container = document.createElement('div');
+                fieldset.appendChild(container);                
+
+                const inputs = values.map((value, index) => ({
+                    id: `${loweredName}-choice-${index}`,
+                    name,
+                    type: 'radio',
+                    value,
+                    checked: index === 0 ? true : undefined
+                }));
+
+                const labels = inputs.map(input => ({
+                    innerText: input.value,
+                    for: input.id
+                }));
+
+                const inputEls = [];
+
+                // Classic for loop preserves ordering
+                for (let i = 0; i < inputs.length; i++) {
+                    const input = inputs[i];
+                    const label = labels[i];
+
+                    const inputEl = makeInput(input);
+                    inputEls.push(inputEl);
+
+                    container.appendChild(inputEl);
+                    container.appendChild(makeLabel(label));
+                }
+
+                return [fieldset, inputEls];
+            };
+
+            const makeConfirmedRadioFieldset = ({ confirmHandler, name, values }) => {
+                const [fieldset, inputEls] = makeRadioFieldset({ name, values });
+
+                const confirmation = document.createElement('button');
+                confirmation.innerText = `Confirm ${name}`;
+                confirmation.addEventListener('click', () => {
+                    confirmHandler(inputEls.find(i => i.checked).value);
+                });
+
+                return [fieldset, confirmation];
+            };
+
+            const makeConfirmedRadioFieldSets = ({ confirmHandler, fieldSets }) => {
+                const fieldSetsByName = {};
+
+                const len = fieldSets.length;
+
+                for (let i = 0; i < len; i++) {
+                    const currentFieldset = fieldSets[i];
+
+                    const [fieldset, inputEls] = makeRadioFieldset(currentFieldset);
+                    fieldSetsByName[currentFieldset.name] = {
+                        index: i,
+                        fieldset,
+                        inputEls
+                    };
+                }
+
+                const confirmation = document.createElement('button');
+                confirmation.innerText = 'Confirm Your Choices';
+                confirmation.addEventListener('click', () => {
+                    const results = {};
+                    const keys = Object.keys(fieldSetsByName);
+
+                    for (const key of keys) {
+                        results[key] = fieldSetsByName[key].inputEls.find(i => i.checked).value
+                    }
+
+                    confirmHandler(results);
+                });
+
+                return [fieldSetsByName, confirmation];
+            };
+
+            const makeInput = ({ checked, id, name, type, value }) => {
+                const el = document.createElement('input');
+
+                el.checked = checked;
+                el.id = id;
+                el.name = name;
+                el.type = type;
+                el.value = value;
+
+                return el;
+            };
+
+            // Can't destructure "for" property with the cool ({ for, innerText }) syntax
+            const makeLabel = label => {
+                const el = document.createElement('label');
+
+                // for is presumably a keyword here as well
+                el.htmlFor = label.for;
+                el.innerText = label.innerText;
+
+                return el;
+            };
+
+            const STATES = [
+                {
+                    name: 'Choose Scenario',
+                    init: () => {
+                        instructions.innerText = 'Choose a shop type.';
+                        const [fieldset, confirmation] = makeConfirmedRadioFieldset({
+                            confirmHandler: val => {
+                                scenario = SCENARIOS.find(s => s.name === val);
+                                changeState()
+                            },
+                            name: 'Shop Type',
+                            values: SCENARIOS.map(s => s.name)
+                        });
+
+                        choices.appendChild(fieldset);
+                        choices.appendChild(confirmation);
+                        choices.classList.remove('no-display');
+                    }
+                },
+                {
+                    name: 'Configure Scenario',
+                    init: () => {
+                        instructions.innerText = `Pick your options for the ${scenario.name} scenario.`
+                        const [fieldSetsByName, confirmation] = makeConfirmedRadioFieldSets({
+                            confirmHandler: values => {
+                                options.concat(values);
+                                console.log("Received a map of values:", values);
+                            },
+                            fieldSets: scenario.options
+                        });
+
+                        const fieldSets = Object.values(fieldSetsByName)
+                                                .sort((a, b) => a.index - b.index)
+                                                .map(fsi => fsi.fieldset)
+                                                .forEach(f => choices.appendChild(f));
+
+                        choices.appendChild(confirmation);
+                    }
+                },
+                {
+                    name: 'Start Scenario',
+                    init: () => {
+                        instructions.innerText = 'Your journey begins. Let\'s set the stage.'
+
+                    }
+                }
+            ];
+
+            let days = 0;
+
+            const changeState = () => {
+                let nextIndex = currentStateIndex === undefined ? 0 : currentStateIndex + 1;
+                currentStateIndex = nextIndex;
+
+                currentState = STATES[currentStateIndex];
+
+                choices.replaceChildren();
+
+                currentState.init();
+            };
+
+            changeState();
+
+            const appendChoice = choice => {
+                choices.appendChild(choice);
+            };
+
+            const makeExclusiveChoice = value => {
+                const choice = document.createElement('button');
+                choice.innerText = value;
+                choice.classList.add('choice');
+                return choice;
+            };
+
+            const addExclusiveChoice = value => {
+                appendChoice(makeExclusiveChoice(value));
+            };
+
+            const isSection = target => target.children.length > 0;
+
+            const handleExclusiveChoice = ({ target }) => {
+                if (isSection(target)) {
+                    // do nothing
+                    return;
+                }
+
+                const value = target.innerText;
+            };
+
+            const handleChoiceClick = event => {
+                const { target } = event;
+
+                if (isSection(target)) {
+                    // do nothing
+                    return;
+                }
+
+                const value = target.innerText;
+            };
+
+            choices.addEventListener("click", handleChoiceClick);
+        </script>
+    </body>
+</html>
